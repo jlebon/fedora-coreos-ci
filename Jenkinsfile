@@ -254,15 +254,20 @@ podTemplate(cloud: 'openshift', label: pod_label, yaml: pod) {
             newBuildID = buildID
             currentBuild.description = "[${params.STREAM}] ⚡ ${newBuildID}"
             meta_json = "builds/${newBuildID}/${basearch}/meta.json"
+            def meta = readJSON file: meta_json
+
+            // insert the Jenkins build ID; this is useful to cross-check with
+            // the pipeline, but it's also used for example to enable smart
+            // concurrent builds
+            meta["fedora-coreos.jenkins-build-id"] = env.BUILD_ID
 
             // and insert the parent info into meta.json so we can display it in
             // the release browser and for sanity checking
             if (parent_commit && parent_version) {
-                def meta = readJSON file: meta_json
                 meta["fedora-coreos.parent-version"] = parent_version
                 meta["fedora-coreos.parent-commit"] = parent_commit
-                writeJSON file: meta_json, json: meta
             }
+            writeJSON file: meta_json, json: meta
         }
 
         if (official && s3_stream_dir && utils.path_exists("/etc/fedora-messaging-cfg/fedmsg.toml")) {
