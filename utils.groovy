@@ -82,4 +82,23 @@ except botocore.exceptions.ClientError as e:
     ' '${src}' '${dest}'""")
 }
 
+// This avoids using cosa and AWS creds since it must be able to run directly on
+// the master.
+def get_latest_build_meta(stream, basearch = 'x86_64') {
+    def buildsUrl = "https://s3.amazonaws.com/fcos-builds/prod/streams/${stream}/builds/builds.json"
+    if (shwrap_rc("curl -fLI ${buildsUrl}") != 0) {
+      return [:]
+    }
+
+    def buildsJson = shwrap_capture("curl -L ${buildsUrl}")
+    def builds = readJSON text: buildsJson
+
+    if (builds['builds'].size == 0) {
+      return [:]
+    }
+
+    def metaUrl = "https://s3.amazonaws.com/fcos-builds/prod/streams/${stream}/builds/${builds['builds'][0]['id']}/${basearch}/meta.json"
+    return readJSON(text: shwrap_capture("curl -L ${metaUrl}"))
+}
+
 return this

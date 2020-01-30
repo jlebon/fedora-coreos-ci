@@ -129,7 +129,33 @@ echo "Final podspec: ${pod}"
 // use a unique label to force Kubernetes to provision a separate pod per run
 def pod_label = "cosa-${UUID.randomUUID().toString()}"
 
-podTemplate(cloud: 'openshift', label: pod_label, yaml: pod) {
+
+echo "Waiting for build-${params.STREAM} lock"
+currentBuild.description = "[${params.STREAM}] Waiting"
+
+// note the `inversePrecedence: true` here: later builds will get the lock first
+lock(resource: "build-${params.STREAM}", inversePrecedence: true) {
+
+    // check if a later build already ran to completion
+    def latest_jenkins_build = 0
+    node {
+        def latest_build_meta = utils.get_latest_build_meta(params.STREAM)
+        if (latest_build_meta.containsKey("fedora-coreos.jenkins-build-id")) {
+            latest_jenkins_build = latest_build_meta["fedora-coreos.jenkins-build-id"]
+        }
+
+    }
+
+    if (latest_jenkins_build > (env.BUILD_ID as Integer)) {
+        echo "Obsoleted by build ${latest_jenkins_build}; skipping..."
+        currentBuild.description = "[${params.STREAM}] Skipped"
+        currentBuild.result = 'ABORTED'
+        return
+    }
+
+    currentBuild.description = "[${params.STREAM}] Running"
+
+    podTemplate(cloud: 'openshift', label: pod_label, yaml: pod) {
     node(pod_label) { container('coreos-assembler') {
 
         // declare this early so we can use it in Slack
@@ -508,4 +534,4 @@ podTemplate(cloud: 'openshift', label: pod_label, yaml: pod) {
             }
         }
     }}
-}
+}}
